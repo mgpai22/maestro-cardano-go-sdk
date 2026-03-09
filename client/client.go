@@ -84,6 +84,22 @@ func (c *Client) sendRequest(req *http.Request, responseBody *string) error {
 	return nil
 }
 
+// unexpectedError reads the response body and returns a formatted error
+// including the HTTP status code and the server's error message.
+func unexpectedError(resp *http.Response) error {
+	defer resp.Body.Close() //nolint:errcheck
+	bodyBytes, readErr := io.ReadAll(resp.Body)
+	if readErr != nil {
+		return fmt.Errorf("unexpected error (status %d): failed to read body: %w", resp.StatusCode, readErr)
+	}
+	// Try to extract a structured error message
+	var errRes errorResponse
+	if json.Unmarshal(bodyBytes, &errRes) == nil && errRes.Message != "" {
+		return fmt.Errorf("unexpected error (status %d): %s", resp.StatusCode, errRes.Message)
+	}
+	return fmt.Errorf("unexpected error (status %d): %s", resp.StatusCode, string(bodyBytes))
+}
+
 func (c *Client) get(url string) (*http.Response, error) {
 	req, err := http.NewRequest("GET", c.BaseUrl+url, nil)
 	if err != nil {
